@@ -1,0 +1,46 @@
+CREATE OR REPLACE FUNCTION reduce_inventory(p_barcode TEXT)
+RETURNS TABLE(
+    product_name TEXT,
+    remaining_quantity INTEGER
+)
+LANGUAGE plpgsql
+AS $$
+DECLARE
+    current_qty INTEGER;
+BEGIN
+    SELECT quantity
+    INTO current_qty
+    FROM products
+    WHERE barcode = p_barcode
+    FOR UPDATE;
+
+    IF NOT FOUND THEN
+        RAISE EXCEPTION 'Product not found';
+    END IF;
+
+    current_qty := GREATEST(current_qty - 1, 0);
+
+    UPDATE products
+    SET quantity = current_qty,
+        updated_at = NOW()
+    WHERE barcode = p_barcode;
+
+    INSERT INTO inventory_logs(
+        barcode,
+        new_quantity,
+        message
+    )
+    VALUES(
+        p_barcode,
+        current_qty,
+        'Inventory updated'
+    );
+
+    RETURN QUERY
+    SELECT
+        name,
+        current_qty
+    FROM products
+    WHERE barcode = p_barcode;
+END;
+$$;
