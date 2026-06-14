@@ -1,0 +1,146 @@
+#include <WiFi.h>
+#include <HTTPClient.h>
+#include <LiquidCrystal_I2C.h>
+
+// 🔴 CHANGE THESE 2 LINES - Put your WiFi details here!
+const char* ssid = "YOUR_WIFI_NAME";
+const char* password = "YOUR_WIFI_PASSWORD";
+
+// Supabase configuration - These are already correct!
+const char* supabaseUrl = "https://fktpvnrhdncmwnoeusml.supabase.co/functions/v1/get_latest_message";
+const char* supabaseKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZrdHB2bnJoZG5jbXdub2V1c21sIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTg4Njc2MzUsImV4cCI6MjA3NDQ0MzYzNX0.dwDVMmKDB6wlJKSbGzUizftN3_Xad9ZLq7Bhh7Rw27Q";
+
+// LCD Configuration (Address 0x27, 16 columns, 2 rows)
+LiquidCrystal_I2C lcd(0x27, 16, 2);
+
+// Update every 3 seconds
+const unsigned long updateInterval = 3000;
+unsigned long lastUpdate = 0;
+String lastMessage = "";
+
+void setup() {
+  Serial.begin(115200);
+  
+  // Initialize LCD
+  lcd.init();
+  lcd.backlight();
+  lcd.clear();
+  lcd.setCursor(0, 0);
+  lcd.print("Inventory LCD");
+  lcd.setCursor(0, 1);
+  lcd.print("Starting...");
+  delay(2000);
+  
+  // Connect to WiFi
+  lcd.clear();
+  lcd.setCursor(0, 0);
+  lcd.print("Connecting WiFi");
+  WiFi.begin(ssid, password);
+  
+  Serial.print("Connecting to WiFi");
+  int attempt = 0;
+  while (WiFi.status() != WL_CONNECTED && attempt < 20) {
+    delay(500);
+    Serial.print(".");
+    lcd.setCursor(attempt % 16, 1);
+    lcd.print(".");
+    attempt++;
+  }
+  
+  if (WiFi.status() == WL_CONNECTED) {
+    Serial.println("\n✅ Connected to WiFi!");
+    Serial.print("IP Address: ");
+    Serial.println(WiFi.localIP());
+    
+    lcd.clear();
+    lcd.setCursor(0, 0);
+    lcd.print("WiFi Connected!");
+    lcd.setCursor(0, 1);
+    lcd.print(WiFi.localIP());
+    delay(2000);
+    
+    lcd.clear();
+    lcd.setCursor(0, 0);
+    lcd.print("Ready...");
+  } else {
+    Serial.println("\n❌ WiFi Failed!");
+    lcd.clear();
+    lcd.setCursor(0, 0);
+    lcd.print("WiFi Failed!");
+    lcd.setCursor(0, 1);
+    lcd.print("Check settings");
+  }
+}
+
+void loop() {
+  if (WiFi.status() == WL_CONNECTED) {
+    unsigned long currentMillis = millis();
+    
+    if (currentMillis - lastUpdate >= updateInterval) {
+      lastUpdate = currentMillis;
+      fetchAndDisplayInventory();
+    }
+  } else {
+    lcd.clear();
+    lcd.setCursor(0, 0);
+    lcd.print("WiFi Lost!");
+    lcd.setCursor(0, 1);
+    lcd.print("Reconnecting...");
+    WiFi.reconnect();
+    delay(5000);
+  }
+}
+
+void fetchAndDisplayInventory() {
+  HTTPClient http;
+  
+  http.begin(supabaseUrl);
+  http.addHeader("apikey", supabaseKey);
+  http.addHeader("Authorization", String("Bearer ") + supabaseKey);
+  
+  Serial.println("📡 Fetching from Supabase...");
+  int httpCode = http.GET();
+  
+  if (httpCode > 0) {
+    if (httpCode == HTTP_CODE_OK) {
+      String payload = http.getString();
+      payload.trim();
+      
+      Serial.print("✅ Got message: ");
+      Serial.println(payload);
+      
+      if (payload != lastMessage) {
+        lastMessage = payload;
+        displayMessage(payload);
+      }
+    } else {
+      Serial.printf("❌ HTTP Error: %d\n", httpCode);
+    }
+  } else {
+    Serial.printf("❌ Connection failed: %s\n", http.errorToString(httpCode).c_str());
+  }
+  
+  http.end();
+}
+
+void displayMessage(String message) {
+  lcd.clear();
+  
+  if (message.length() <= 16) {
+    // Fits on one line
+    lcd.setCursor(0, 0);
+    lcd.print(message);
+  } else if (message.length() <= 32) {
+    // Split across two lines
+    lcd.setCursor(0, 0);
+    lcd.print(message.substring(0, 16));
+    lcd.setCursor(0, 1);
+    lcd.print(message.substring(16));
+  } else {
+    // Show first 32 characters
+    lcd.setCursor(0, 0);
+    lcd.print(message.substring(0, 16));
+    lcd.setCursor(0, 1);
+    lcd.print(message.substring(16, 32));
+  }
+}
