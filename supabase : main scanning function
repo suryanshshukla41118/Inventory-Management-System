@@ -1,0 +1,121 @@
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+
+Deno.serve(async (req) => {
+  const corsHeaders = {
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Headers':
+      'authorization, x-client-info, apikey, content-type'
+  };
+
+  if (req.method === 'OPTIONS') {
+    return new Response('ok', { headers: corsHeaders });
+  }
+
+  try {
+    const supabaseUrl = Deno.env.get('SUPABASE_URL');
+    const supabaseKey = Deno.env.get('SUPABASE_ANON_KEY');
+
+    if (!supabaseUrl || !supabaseKey) {
+      throw new Error('Missing Supabase environment variables');
+    }
+
+    const authHeader = req.headers.get('Authorization');
+
+    const supabase = createClient(
+      supabaseUrl,
+      supabaseKey,
+      {
+        global: {
+          headers: {
+            Authorization: authHeader ?? ''
+          }
+        }
+      }
+    );
+
+    const url = new URL(req.url);
+    const barcode = url.searchParams.get('barcode')?.trim();
+
+    if (!barcode) {
+      throw new Error('Barcode is missing');
+    }
+
+    if (barcode.length > 100) {
+      throw new Error('Invalid barcode');
+    }
+
+    const { data: product, error: fetchError } =
+      await supabase
+        .from('products')
+        .select('quantity,name')
+        .eq('barcode', barcode)
+        .single();
+
+    if (fetchError || !product) {
+      throw new Error('Product not found');
+    }
+
+    let newQuantity = product.quantity;
+
+    if (product.quantity > 0) {
+      newQuantity = product.quantity - 1;
+
+      const { error: updateError } =
+        await supabase
+          .from('products')
+          .update({
+            quantity: newQuantity
+          })
+          .eq('barcode', barcode);
+
+      if (updateError) {
+        throw new Error(
+          `Inventory update failed: ${updateError.message}`
+        );
+      }
+    }
+
+    const responseMessage =
+      `${product.name}: ${newQuantity} left.`;
+
+    const { error: logError } =
+      await supabase
+        .from('inventory_logs')
+        .insert({
+          barcode,
+          message: responseMessage
+        });
+
+    if (logError) {
+      console.error(
+        'Log insert failed:',
+        logError.message
+      );
+    }
+
+    return new Response(
+      responseMessage,
+      {
+        status: 200,
+        headers: {
+          ...corsHeaders,
+          'Content-Type': 'text/plain'
+        }
+      }
+    );
+
+  } catch (error) {
+    console.error(error);
+
+    return new Response(
+      error.message,
+      {
+        status: 500,
+        headers: {
+          ...corsHeaders,
+          'Content-Type': 'text/plain'
+        }
+      }
+    );
+  }
+});
