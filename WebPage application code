@@ -1,0 +1,506 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Inventory Scanner</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+
+        .container {
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            padding: 30px;
+            width: 100%;
+            max-width: 500px;
+            animation: slideUp 0.5s ease-out;
+        }
+
+        @keyframes slideUp {
+            from {
+                opacity: 0;
+                transform: translateY(30px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        h1 {
+            color: #333;
+            text-align: center;
+            margin-bottom: 30px;
+            font-size: 28px;
+            font-weight: 700;
+            position: relative;
+        }
+
+        h1::after {
+            content: '';
+            position: absolute;
+            bottom: -10px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 50px;
+            height: 3px;
+            background: linear-gradient(90deg, #667eea, #764ba2);
+            border-radius: 2px;
+        }
+
+        .button-container {
+            display: flex;
+            gap: 15px;
+            margin-bottom: 25px;
+            flex-wrap: wrap;
+        }
+
+        .btn {
+            flex: 1;
+            min-width: 150px;
+            padding: 15px 25px;
+            font-size: 16px;
+            font-weight: 600;
+            border: none;
+            border-radius: 10px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .btn::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: rgba(255, 255, 255, 0.2);
+            transition: left 0.5s ease;
+        }
+
+        .btn:hover::before {
+            left: 100%;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(102, 126, 234, 0.5);
+        }
+
+        .btn-secondary {
+            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+            color: white;
+            box-shadow: 0 4px 15px rgba(240, 147, 251, 0.4);
+        }
+
+        .btn-secondary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(240, 147, 251, 0.5);
+        }
+
+        .btn-stop {
+            background: linear-gradient(135deg, #ff6b6b 0%, #ee5a24 100%);
+            color: white;
+            margin-top: 20px;
+            width: 100%;
+        }
+
+        .btn-stop:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(238, 90, 36, 0.5);
+        }
+
+        #qr-reader {
+            display: none;
+            margin-bottom: 20px;
+            border-radius: 10px;
+            overflow: hidden;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+        }
+
+        #qr-reader video {
+            border-radius: 10px;
+        }
+
+        #status-message {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 10px;
+            text-align: center;
+            font-size: 16px;
+            color: #333;
+            min-height: 60px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border: 2px solid #e9ecef;
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+        }
+
+        #status-message::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(102, 126, 234, 0.1), transparent);
+            transition: left 1s ease;
+        }
+
+        #status-message.scanning::before {
+            left: 100%;
+            animation: shimmer 2s infinite;
+        }
+
+        @keyframes shimmer {
+            0% { left: -100%; }
+            100% { left: 100%; }
+        }
+
+        #status-message.success {
+            background: linear-gradient(135deg, #d4fc79 0%, #96e6a1 100%);
+            color: #2d5016;
+            border-color: #96e6a1;
+        }
+
+        #status-message.error {
+            background: linear-gradient(135deg, #ffeaa7 0%, #fdcb6e 100%);
+            color: #6c5ce7;
+            border-color: #fdcb6e;
+        }
+
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            z-index: 1000;
+            animation: fadeIn 0.3s ease;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+
+        .modal-content {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: white;
+            padding: 30px;
+            border-radius: 15px;
+            width: 90%;
+            max-width: 400px;
+            animation: slideDown 0.3s ease;
+        }
+
+        @keyframes slideDown {
+            from {
+                opacity: 0;
+                transform: translate(-50%, -60%);
+            }
+            to {
+                opacity: 1;
+                transform: translate(-50%, -50%);
+            }
+        }
+
+        .modal h2 {
+            margin-bottom: 20px;
+            color: #333;
+            text-align: center;
+        }
+
+        .modal input {
+            width: 100%;
+            padding: 12px;
+            font-size: 16px;
+            border: 2px solid #e9ecef;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            transition: border-color 0.3s ease;
+        }
+
+        .modal input:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .modal-buttons {
+            display: flex;
+            gap: 10px;
+        }
+
+        .modal-buttons button {
+            flex: 1;
+            padding: 12px;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-weight: 600;
+        }
+
+        .modal-buttons .submit {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+
+        .modal-buttons .submit:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+        }
+
+        .modal-buttons .cancel {
+            background: #e9ecef;
+            color: #495057;
+        }
+
+        .modal-buttons .cancel:hover {
+            background: #dee2e6;
+        }
+
+        .scanner-icon {
+            display: inline-block;
+            margin-right: 8px;
+        }
+
+        @media (max-width: 480px) {
+            .container {
+                padding: 20px;
+            }
+
+            h1 {
+                font-size: 24px;
+            }
+
+            .button-container {
+                flex-direction: column;
+            }
+
+            .btn {
+                width: 100%;
+            }
+        }
+    </style>
+    <script src="https://unpkg.com/html5-qrcode/html5-qrcode.min.js"></script>
+</head>
+<body>
+    <div class="container">
+        <h1>📦 Inventory Scanner</h1>
+        
+        <div class="button-container" id="buttonContainer">
+            <button class="btn btn-primary" id="startScanBtn" onclick="startScanning()">
+                <span class="scanner-icon">📷</span>Start Scan
+            </button>
+            <button class="btn btn-secondary" onclick="openManualEntry()">
+                <span class="scanner-icon">⌨️</span>Enter Manually
+            </button>
+        </div>
+
+        <div id="qr-reader"></div>
+        <button class="btn btn-stop" id="stopScanBtn" style="display: none;" onclick="stopScanning()">
+            Stop Scanning
+        </button>
+
+        <div id="status-message">Ready</div>
+    </div>
+
+    <!-- Manual Entry Modal -->
+    <div id="manualEntryModal" class="modal">
+        <div class="modal-content">
+            <h2>Enter Barcode Manually</h2>
+            <input type="text" id="barcodeInput" placeholder="Enter barcode number..." autofocus>
+            <div class="modal-buttons">
+                <button class="submit" onclick="submitManualBarcode()">Submit</button>
+                <button class="cancel" onclick="closeManualEntry()">Cancel</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Backend URL configuration
+        const backendUrl = 'https://fktpvnrhdncmwnoeusml.supabase.co/functions/v1/scan_items';
+        const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZrdHB2bnJoZG5jbXdub2V1c21sIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTg4Njc2MzUsImV4cCI6MjA3NDQ0MzYzNX0.dwDVMmKDB6wlJKSbGzUizftN3_Xad9ZLq7Bhh7Rw27Q'
+        
+        let html5QrCode = null;
+        let isScanning = false;
+
+        function updateStatus(message, type = 'default') {
+            const statusElement = document.getElementById('status-message');
+            statusElement.textContent = message;
+            statusElement.className = '';
+            
+            if (type === 'success') {
+                statusElement.classList.add('success');
+            } else if (type === 'error') {
+                statusElement.classList.add('error');
+            } else if (type === 'scanning') {
+                statusElement.classList.add('scanning');
+            }
+        }
+
+        function startScanning() {
+            const qrReaderElement = document.getElementById('qr-reader');
+            const buttonContainer = document.getElementById('buttonContainer');
+            const stopBtn = document.getElementById('stopScanBtn');
+            
+            // Show scanner UI
+            buttonContainer.style.display = 'none';
+            qrReaderElement.style.display = 'block';
+            stopBtn.style.display = 'block';
+            updateStatus('Initializing camera...', 'scanning');
+            
+            html5QrCode = new Html5Qrcode('qr-reader');
+            
+            const config = {
+                fps: 10,
+                qrbox: { width: 250, height: 250 },
+                aspectRatio: 1.0
+            };
+            
+            html5QrCode.start(
+                { facingMode: "environment" },
+                config,
+                onScanSuccess,
+                onScanFailure
+            ).then(() => {
+                isScanning = true;
+                updateStatus('Scanning... Point at barcode', 'scanning');
+            }).catch((err) => {
+                console.error('Failed to start scanning:', err);
+                updateStatus(`Error: ${err}`, 'error');
+                stopScanning();
+            });
+        }
+
+        function stopScanning() {
+            if (html5QrCode && isScanning) {
+                html5QrCode.stop().then(() => {
+                    html5QrCode.clear();
+                    isScanning = false;
+                    
+                    // Reset UI
+                    document.getElementById('qr-reader').style.display = 'none';
+                    document.getElementById('buttonContainer').style.display = 'flex';
+                    document.getElementById('stopScanBtn').style.display = 'none';
+                    updateStatus('Ready');
+                }).catch((err) => {
+                    console.error('Failed to stop scanning:', err);
+                });
+            }
+        }
+
+        function onScanSuccess(decodedText, decodedResult) {
+            // Update status with scanned code
+            updateStatus(`Scanned: ${decodedText}`, 'success');
+            
+            // Stop scanning after successful scan
+            stopScanning();
+            
+            // Send to backend
+            sendToBackend(decodedText);
+        }
+
+        function onScanFailure(error) {
+            // Silent fail - camera is still looking for codes
+            // Only log errors if needed for debugging
+            // console.warn(`QR scan error: ${error}`);
+        }
+
+        function sendToBackend(barcode) {
+            updateStatus(`Sending ${barcode} to server...`, 'scanning');
+            
+fetch(`${backendUrl}?barcode=${barcode}`, {
+    method: 'POST',
+    headers: {
+        'apikey': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZrdHB2bnJoZG5jbXdub2V1c21sIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTg4Njc2MzUsImV4cCI6MjA3NDQ0MzYzNX0.dwDVMmKDB6wlJKSbGzUizftN3_Xad9ZLq7Bhh7Rw27Q',
+        'Authorization': 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZrdHB2bnJoZG5jbXdub2V1c21sIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTg4Njc2MzUsImV4cCI6MjA3NDQ0MzYzNX0.dwDVMmKDB6wlJKSbGzUizftN3_Xad9ZLq7Bhh7Rw27Q'
+    }
+})
+            .then(response => response.text())
+            .then(data => {
+                updateStatus(`Server Response: ${data}`, 'success');
+            })
+            .catch(error => {
+                console.error('Backend error:', error);
+                updateStatus(`Error: ${error.message}`, 'error');
+            });
+        }
+        const esp32Ip = '10.135.173.250'; 
+            fetch(`http://${esp32Ip}/blink`).catch(e => console.error("ESP32 call failed:", e));
+
+        function openManualEntry() {
+            document.getElementById('manualEntryModal').style.display = 'block';
+            document.getElementById('barcodeInput').focus();
+        }
+
+        function closeManualEntry() {
+            document.getElementById('manualEntryModal').style.display = 'none';
+            document.getElementById('barcodeInput').value = '';
+        }
+
+        function submitManualBarcode() {
+            const barcode = document.getElementById('barcodeInput').value.trim();
+            
+            if (barcode) {
+                updateStatus(`Manual entry: ${barcode}`, 'success');
+                closeManualEntry();
+                sendToBackend(barcode);
+            } else {
+                alert('Please enter a barcode number');
+            }
+        }
+
+        // Handle Enter key in manual entry
+        document.addEventListener('DOMContentLoaded', function() {
+            document.getElementById('barcodeInput').addEventListener('keypress', function(e) {
+                if (e.key === 'Enter') {
+                    submitManualBarcode();
+                }
+            });
+
+            // Close modal when clicking outside
+            document.getElementById('manualEntryModal').addEventListener('click', function(e) {
+                if (e.target === this) {
+                    closeManualEntry();
+                }
+            });
+        });
+    </script>
+</body>
+</html>
